@@ -1,0 +1,1 @@
+# My attempt at making an IRS tax/witholings calculator in rust because i was annoyed this wasnt such a basic and trivial math/excel formula that I could blast into a simple webpage but nothing worked for me
