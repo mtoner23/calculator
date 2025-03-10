@@ -2,50 +2,133 @@
 #![allow(rustdoc::missing_crate_level_docs)] // it's an example
 
 use eframe::egui;
-use egui::{FontId, TextStyle};
+use egui::{FontId, TextStyle, Vec2};
+use regex;
+
+mod taxes;
+use taxes::FilingStatus;
 
 const WINDOW_WIDTH: f32 = 1500.0;
 const WINDOW_HEIGHT: f32 = 600.0;
 
-#[derive(Default)]
-struct MyApp {
-    count1: i32,
-    slider: i32,
-    typed_income: String,
-    typed_bonus: String,
+fn validate_dollar(s: &str) -> Option<f64> {
+    // Use regex to validate the format
+    if s.is_empty() {
+        return Some(0.);
+    }
+
+    let re = regex::Regex::new(r"^-?\$?(\d{1,3}(,\d{3})*|\d+)(\.\d{1,2})?$").unwrap();
+    if re.is_match(s) {
+        let cleaned = &s.replace('$', "").replace(',', "");
+        return Some(cleaned.parse::<f64>().unwrap());
+    } else {
+        return None;
+    }
 }
 
-fn text_edit_label<S: egui::TextBuffer>(ui: &mut egui::Ui, label: String, editable: &mut S) {
-    ui.horizontal(|ui| {
-        let my_label = ui.label(label);
-        ui.text_edit_singleline(editable).labelled_by(my_label.id);
-    });
+struct MyApp {
+    typed_income: String,
+    typed_bonus: String,
+    typed_deduction: String,
+    typed_pre_tax: String,
+    filing_status: FilingStatus,
+    use_standard: bool,
+    // deduction: f64,
 }
 
 impl MyApp {
     fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        return Self::default();
+        MyApp {
+            typed_income: "".to_owned(),
+            typed_bonus: "".to_owned(),
+            typed_deduction: "".to_owned(),
+            typed_pre_tax: "".to_owned(),
+            filing_status: FilingStatus::Single,
+            use_standard: true,
+            // deduction: 0.0,
+        }
+    }
+
+    fn update_text_styles(ctx: &egui::Context) {
+        let mut style = (*ctx.style()).clone();
+
+        style.text_styles.insert(TextStyle::Body, FontId::new(35.0, egui::FontFamily::Proportional));
+        style.text_styles.insert(TextStyle::Heading, FontId::new(64.0, egui::FontFamily::Proportional));
+        style.text_styles.insert(TextStyle::Button, FontId::new(25.0, egui::FontFamily::Proportional));
+        style.spacing.interact_size = Vec2::new(35.0, 35.0);
+
+        ctx.set_style(style);
     }
 
     fn left_side(&mut self, ui: &mut egui::Ui) {
-        ui.vertical(|ui| {
-            ui.label("Test");
-            ui.label("Test 2");
-
-            text_edit_label(ui, "This year regular income: ".to_owned(), &mut self.typed_income);
-
-            text_edit_label(ui, "This year Bonus: ".to_owned(), &mut self.typed_bonus);
-
-            ui.add(egui::Slider::new(&mut self.slider, 0..=100).text(""));
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.label("This year regular income");
+                ui.label("This year Bonus");
+                ui.label("Standard Deduction");
+                ui.label("Itemized Deduction");
+                ui.label("Pre-Tax Contributions");
+                ui.label("Filing status");
+            });
+            ui.vertical(|ui| {
+                ui.text_edit_singleline(&mut self.typed_income);
+                ui.text_edit_singleline(&mut self.typed_bonus);
+                ui.checkbox(&mut self.use_standard, "");
+                ui.add_enabled(!self.use_standard, egui::TextEdit::singleline(&mut self.typed_deduction));
+                ui.text_edit_singleline(&mut self.typed_pre_tax);
+                ui.vertical(|ui| {
+                    ui.radio_value(&mut self.filing_status, FilingStatus::Single, "Single");
+                    ui.radio_value(&mut self.filing_status, FilingStatus::MarriedSeparate, "Married Filing Separate");
+                    ui.radio_value(&mut self.filing_status, FilingStatus::MarriedJoint, "Married Filing Jointly");
+                });
+            });
         });
     }
 
     fn right_side(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
-            let income_text = format!("Income {}", self.typed_income);
-            ui.label(income_text);
-            ui.label("Right 2");
-            // ui_counter(ui, &mut self.count1);
+            let validated_income = validate_dollar(&self.typed_income).unwrap_or_else(|| {
+                ui.label("Invalid income format");
+                0.0
+            });
+            ui.label(format!("Regular Income: {}", validated_income));
+
+            let validated_bonus = validate_dollar(&self.typed_bonus).unwrap_or_else(|| {
+                ui.label("Invalid bonus format");
+                0.0
+            });
+            ui.label(format!("Bonus Income : {}", validated_bonus));
+
+            let total_income = validated_income + validated_bonus;
+            ui.label(format!("Total Income : {}", total_income));
+
+            let deduction: f64 = match self.use_standard {
+                true => taxes::get_standard_decution(self.filing_status),
+                false => validate_dollar(&self.typed_deduction).unwrap_or_else(|| {
+                    ui.label("Err: Invalid deduction amount");
+                    0.0
+                }),
+            };
+
+            let deductions = deduction
+                + validate_dollar(&self.typed_pre_tax).unwrap_or_else(|| {
+                    ui.label("Err: Invalid pre-tax amount");
+                    0.0
+                });
+
+            let taxable_income = total_income - deductions;
+            ui.label(format!("Taxable Income : {}", taxable_income));
+
+            let regular_withheld = taxes::calculate_income_tax(validated_income - deductions, self.filing_status);
+            let bonus_actual_withheld = validated_bonus * taxes::BONUS_WITHHELD_RATE;
+            let total_needs_withheld = taxes::calculate_income_tax(taxable_income, self.filing_status);
+            let withholding_differnce = total_needs_withheld - bonus_actual_withheld - regular_withheld;
+
+            ui.label(format!("Regular Income tax withheld: {}", regular_withheld));
+            ui.label(format!("Bonus Income actual withheld: {}", bonus_actual_withheld));
+
+            ui.label(format!("Total Income needed withheld: {}", total_needs_withheld));
+            ui.label(format!("Withholding Difference: {}", withholding_differnce));
         });
     }
 }
@@ -53,37 +136,16 @@ impl MyApp {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            update_text_styles(ctx);
-            ui.heading("Hello Test Application!");
+            MyApp::update_text_styles(ctx);
+            ui.heading("Bonus Tax Helper");
+            ui.label("Description of why this is necessary");
 
             ui.horizontal(|ui| {
                 MyApp::left_side(self, ui);
                 MyApp::right_side(self, ui);
             });
-            // let mut regular_income: &str = "";
         });
     }
-}
-
-fn ui_counter(ui: &mut egui::Ui, counter: &mut i32) {
-    ui.horizontal(|ui| {
-        if ui.button("−").clicked() {
-            *counter -= 1;
-        }
-        ui.label(counter.to_string());
-        if ui.button("+").clicked() {
-            *counter += 1;
-        }
-    });
-}
-
-fn update_text_styles(ctx: &egui::Context) {
-    let mut style = (*ctx.style()).clone();
-
-    style.text_styles.insert(TextStyle::Body, FontId::new(40.0, egui::FontFamily::Proportional));
-    style.text_styles.insert(TextStyle::Heading, FontId::new(64.0, egui::FontFamily::Proportional));
-
-    ctx.set_style(style);
 }
 
 fn main() -> eframe::Result {
@@ -93,10 +155,6 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default().with_inner_size([WINDOW_WIDTH, WINDOW_HEIGHT]),
         ..Default::default()
     };
-
-    // Our application state:
-    // let mut name = "Arthur".to_owned();
-    // let mut age = 42;
 
     return eframe::run_native("My egui App", options, Box::new(|cc| Ok(Box::new(MyApp::new(cc)))));
 }

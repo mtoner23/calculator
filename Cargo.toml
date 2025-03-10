@@ -8,6 +8,4 @@ edition = "2024"
 [dependencies]
 eframe = "0.31.0"
 egui = "0.31.0"
-
-[workspace]
-edition = "2021"
+regex = "1.11.1"
