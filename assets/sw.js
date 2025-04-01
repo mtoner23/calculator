@@ -1,9 +1,9 @@
 var cacheName = 'calculator-js-cache';
 var filesToCache = [
     './',
-    './index.html',
+    './calculator.html',
     './calculator.js',
-    './calculator.wasm',
+    './calculator_bg.wasm',
 ];
 
 /* Start the service worker and cache all of the app's content */
