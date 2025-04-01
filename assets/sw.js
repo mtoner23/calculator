@@ -2,8 +2,8 @@ var cacheName = 'calculator-js-cache';
 var filesToCache = [
     './',
     './index.html',
-    './eframe_template.js',
-    './eframe_template_bg.wasm',
+    './calculator.js',
+    './calculator.wasm',
 ];
 
 /* Start the service worker and cache all of the app's content */
