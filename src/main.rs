@@ -1,17 +1,17 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 #![allow(rustdoc::missing_crate_level_docs)] // it's an example
 
-use eframe::egui;
-
 mod app;
 mod taxes;
 use app::MyApp;
 
-const WINDOW_WIDTH: f32 = 1500.0;
-const WINDOW_HEIGHT: f32 = 600.0;
-
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {
+    use eframe::egui;
+
+    const WINDOW_WIDTH: f32 = 1500.0;
+    const WINDOW_HEIGHT: f32 = 600.0;
+
     // env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
 
     let options = eframe::NativeOptions {
@@ -34,10 +34,10 @@ fn main() {
         let document = web_sys::window().expect("No window").document().expect("No document");
 
         let canvas = document
-            .get_element_by_id("the_canvas_id")
+            .get_element_by_id("calculator")
             .expect("Failed to find the_canvas_id")
             .dyn_into::<web_sys::HtmlCanvasElement>()
-            .expect("the_canvas_id was not a HtmlCanvasElement");
+            .expect("calculator was not a HtmlCanvasElement");
 
         let start_result = eframe::WebRunner::new()
             .start(canvas, web_options, Box::new(|cc| Ok(Box::new(MyApp::new(cc)))))
