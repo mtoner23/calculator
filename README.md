@@ -18,5 +18,5 @@ There is only 1 target in here, so `cargo run` should just run the main file for
 * Locally
     * `trunk serve`
 * Deploy
-    * `trunk build --release`
-    * copy necessary files from `dist/`
+    * `trunk build --release --public-url '<base url>'`
+    * copy necessary files from `dist/` to your website
